@@ -7,7 +7,8 @@ class Post(models.Model):
     text = models.TextField() 
     created_date = models.DateTimeField(default=timezone.now) 
     published_date = models.DateTimeField(blank=True, null=True)
-    
+    image = models.ImageField(upload_to='intruder_image/%Y/%m/%d/', default='intruder_image/default_error.png')
+
     def publish(self):
         self.published_date = timezone.now() 
         self.save()
