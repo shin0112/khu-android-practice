@@ -54,3 +54,7 @@ def post_edit(request, pk):
 class IntruderImage(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
+
+
+def js_test(request):
+    return render(request, 'blog/js_test.html', {})

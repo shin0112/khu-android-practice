@@ -14,4 +14,5 @@ urlpatterns = [
     path('post/<int:pk>/edit/', views.post_edit, name='post_edit'),
     path('api-root/', include(router.urls)),
     path('api-token-auth/', obtain_auth_token),
+    path('js-test/', views.js_test, name='js_test'),
 ]
