@@ -41,8 +41,10 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
     private static final int READ_MEDIA_IMAGES_PERMISSION_CODE = 1001;
     private static final int READ_EXTERNAL_STORAGE_PERMISSION_CODE = 1002;
-    private static final String TOKEN = "Token b3e09c7eef2c319340f16684be7cae657d4cb3fe";
-    private static final String UPLOAD_URL = "http://10.0.2.2:8000/api-root/Post/";
+//    private static final String TOKEN = "Token b3e09c7eef2c319340f16684be7cae657d4cb3fe";
+//    private static final String UPLOAD_URL = "http://10.0.2.2:8000/api-root/Post/";
+    private static final String TOKEN = "Token 7d1e5d66f94f49b02491c062038371da924fa34a";
+    private static final String UPLOAD_URL = "http://shin0112.pythonanywhere.com/api-root/Post/";
     Uri imageUri = null;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
