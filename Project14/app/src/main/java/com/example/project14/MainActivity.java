@@ -1,17 +1,5 @@
 package com.example.project14;
 
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
-import android.os.Bundle;
-
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -25,21 +13,27 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.Toast;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
-import java.io.ByteArrayOutputStream;
+import org.json.JSONException;
+
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.time.LocalDateTime;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +41,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
     private static final int READ_MEDIA_IMAGES_PERMISSION_CODE = 1001;
     private static final int READ_EXTERNAL_STORAGE_PERMISSION_CODE = 1002;
-
+    private static final String TOKEN = "Token b3e09c7eef2c319340f16684be7cae657d4cb3fe";
     private static final String UPLOAD_URL = "http://10.0.2.2:8000/api-root/Post/";
     Uri imageUri = null;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -57,15 +51,12 @@ public class MainActivity extends AppCompatActivity {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     imageUri = result.getData().getData();
                     String filePath = getRealPathFromURI(imageUri);
-                    executorService.execute(() ->
-                    {
+                    executorService.execute(() -> {
                         String uploadResult;
                         try {
                             uploadResult = uploadImage(filePath);
-                        } catch (IOException e) {
+                        } catch (IOException | JSONException e) {
                             uploadResult = "Upload failed: " + e.getMessage();
-                        } catch (JSONException e) {
-                            throw new RuntimeException(e);
                         }
                         String finalUploadResult = uploadResult;
                         handler.post(() -> Toast.makeText(MainActivity.this, finalUploadResult, Toast.LENGTH_LONG).show());
@@ -129,44 +120,94 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String uploadImage(String imageUrl) throws IOException, JSONException {
-        OutputStreamWriter outputStreamWriter = null;
+    private String uploadImage(String filePath) throws IOException, JSONException {
+        String boundary = "*****" + System.currentTimeMillis() + "*****";
+        String lineEnd = "\r\n";
+        String twoHyphens = "--";
+
+        HttpURLConnection connection = null;
+        DataOutputStream request = null;
+
         try {
-            try {
-                URL url = new URL(UPLOAD_URL);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("POST");
-                connection.setRequestProperty("Authorization", "Token b3e09c7eef2c319340f16684be7cae657d4cb3fe");
-                connection.setRequestProperty("Content-Type", "multipart/form-data");
-                JSONObject jsonObject = new JSONObject();
-                jsonObject.put("author", 1);
-                jsonObject.put("title", "안드로이드-REST API 테스트");
-                jsonObject.put("text", "안드로이드로 작성된 REST API 테스트 입력 입니다.");
-                jsonObject.put("created_date", LocalDateTime.now().toString());
-                jsonObject.put("published_date", LocalDateTime.now().toString());
+            // 이미지 파일
+            File imageFile = new File(filePath);
 
-                outputStreamWriter = new OutputStreamWriter(connection.getOutputStream());
-                outputStreamWriter.write(jsonObject.toString());
-                outputStreamWriter.flush();
-                connection.connect();
+            // 서버 연결 설정
+            URL url = new URL(UPLOAD_URL);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+            connection.setUseCaches(false);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Authorization", TOKEN);
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-                if (connection.getResponseCode() == 200) {
-                    Log.e("uploadImage", "Success");
-                } else if (connection.getResponseCode() == 403) {
-                    Log.e("uploadImage", "Forbidden");
-                }
+            request = new DataOutputStream(connection.getOutputStream());
 
-                connection.disconnect();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            // 각 필드를 별도의 파트로 보냄
+            sendFormField(request, boundary, "author", "1");
+            sendFormField(request, boundary, "title", "android test");
+            sendFormField(request, boundary, "text", "android test");
+            sendFormField(request, boundary, "created_date", LocalDateTime.now().toString());
+            sendFormField(request, boundary, "published_date", LocalDateTime.now().toString());
+
+            // 파일 데이터 추가
+            request.writeBytes(twoHyphens + boundary + lineEnd);
+            request.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"" + imageFile.getName() + "\"" + lineEnd);
+            request.writeBytes("Content-Type: " + URLConnection.guessContentTypeFromName(imageFile.getName()) + lineEnd);
+            request.writeBytes(lineEnd);
+
+            FileInputStream fileInputStream = new FileInputStream(imageFile);
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                request.write(buffer, 0, bytesRead);
             }
-        } catch (
-                Exception e) {
+            request.writeBytes(lineEnd);
+            request.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd);
+
+            fileInputStream.close();
+            request.flush();
+            request.close();
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_CREATED) {
+                return "Upload successful";
+            } else {
+                InputStream errorStream = connection.getErrorStream();
+                if (errorStream != null) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(errorStream));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    Log.e("uploadImage", "Upload failed: " + response.toString());
+                }
+                return "Upload failed: " + responseCode;
+            }
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
             Log.e("uploadImage", "Exception in uploadImage: " + e.getMessage());
+            return "Upload failed: " + e.getMessage();
+        } finally {
+            if (request != null) {
+                request.close();
+            }
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
-        Log.e("LogInTask", "Failed to login");
-        throw new Error("failed to login");
+    }
+
+    private void sendFormField(DataOutputStream request, String boundary, String fieldName, String value) throws IOException {
+        request.writeBytes("--" + boundary + "\r\n");
+        request.writeBytes("Content-Disposition: form-data; name=\"" + fieldName + "\"\r\n");
+        request.writeBytes("\r\n");
+        request.writeBytes(value + "\r\n");
     }
 }
